@@ -73,10 +73,14 @@ All customization of the server can be done by editing the file
 your way.  Things you might like to change include:
 
     * The client-visible hostname for your server.  Edit the "public_url"
-      key under the [syncstorage] section.
+      key under the [syncerver] section.
 
     * The database in which to store sync data.  Edit the "sqluri" setting
-      under the [syncstorage] section.
+      under the [syncserver] section.
+
+    * The secret key to use for signing auth tokens.  Find the "secret"
+      entry under the [syncserver] section and follow the instructions
+      in the comment to replace it with a strong random key.
 
 
 Database Backend Modules
@@ -97,8 +101,11 @@ to install an appropriate python module, e.g::
 Runner under Docker
 -------------------
 
+[Dockerhub Page](https://hub.docker.com/r/mozilla/syncserver)
+
 There is experimental support for running the server inside a Docker
-container.  Build the image like this::
+container. The docker image runs with UID/GID 1001/1001.
+Build the image like this::
 
     $ docker build -t syncserver:latest .
 
@@ -108,18 +115,49 @@ environmet variables, like this::
     $ docker run --rm \
         -p 5000:5000 \
         -e SYNCSERVER_PUBLIC_URL=http://localhost:5000 \
-        -e SYNCSERVER_SECRET=5up3rS3kr1t \
+        -e SYNCSERVER_SECRET=<PUT YOUR SECRET KEY HERE> \
         -e SYNCSERVER_SQLURI=sqlite:////tmp/syncserver.db \
         -e SYNCSERVER_BATCH_UPLOAD_ENABLED=true \
         -e SYNCSERVER_FORCE_WSGI_ENVIRON=false \
         -e PORT=5000 \
-        syncserver:latest
+        mozilla/syncserver:latest
+
+    or
+
+    $ docker run --rm \
+        -p 5000:5000 \
+        -e SYNCSERVER_PUBLIC_URL=http://localhost:5000 \
+        -e SYNCSERVER_SECRET_FILE=<PUT YOUR SECRET KEY FILE LOCATION HERE> \
+        -e SYNCSERVER_SQLURI=sqlite:////tmp/syncserver.db \
+        -e SYNCSERVER_BATCH_UPLOAD_ENABLED=true \
+        -e SYNCSERVER_FORCE_WSGI_ENVIRON=false \
+        -e PORT=5000 \
+        -v /secret/file/at/host:<PUT YOUR SECRET KEY FILE LOCATION HERE>  \
+        mozilla/syncserver:latest
+
+Don't forget to `generate a random secret key <https://mozilla-services.readthedocs.io/en/latest/howtos/run-sync-1.5.html#further-configuration>`_
+to use in the `SYNCSERVER_SECRET` environment variable or mount your secret key file!
 
 And you can test whether it's running correctly by using the builtin
 function test suite, like so::
 
     $ /usr/local/bin/python -m syncstorage.tests.functional.test_storage \
         --use-token-server http://localhost:5000/token/1.0/sync/1.5
+
+If you'd like a persistent setup, you can mount a volume as well::
+
+    $ docker run -d \
+        -v /syncserver:/data \
+        -p 5000:5000 \
+        -e SYNCSERVER_PUBLIC_URL=http://localhost:5000 \
+        -e SYNCSERVER_SECRET=<PUT YOUR SECRET KEY HERE> \
+        -e SYNCSERVER_SQLURI=sqlite:////data/syncserver.db \
+        -e SYNCSERVER_BATCH_UPLOAD_ENABLED=true \
+        -e SYNCSERVER_FORCE_WSGI_ENVIRON=false \
+        -e PORT=5000 \
+        mozilla/syncserver:latest
+        
+Make sure that /syncserver is owned by 1001:1001
 
 
 Removing Mozilla-hosted data
